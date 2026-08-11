@@ -1,0 +1,33 @@
+.venv/
+build/
+dist/
+installer-output/
+*.spec.bak
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local conversation/import artefacts and user data
+.hermes/
+.codex-remote-attachments/
+*.sprj/
+
+# Mobile generated files and local machine settings
+mobile/.dart_tool/
+mobile/build/
+mobile/.idea/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+mobile/**/*.apk
+mobile/**/*.aab
+
+# Local secrets and signing material
+*.jks
+*.keystore
+key.properties
+google-services.json
