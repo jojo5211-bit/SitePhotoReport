@@ -45,7 +45,7 @@ Release APK 預設產生於 `mobile\build\app\outputs\flutter-apk\app-release.ap
 
 - 桌面版版本需同步更新 `docs/CHANGELOG.md`、`installer.iss` 與 `build.ps1` 的輸出名稱。
 - 手機版版本需更新 `mobile/pubspec.yaml` 的 `version`，並在 `docs/MOBILE_CHANGELOG.md` 記錄變更。
-- 每個已交付版本使用獨立 tag，例如 `desktop-v0.8.0`、`android-v1.1.1`。
+- 每個已交付版本使用獨立 tag，例如 `desktop-v0.8.0`、`android-v1.1.2`。
 - 不覆蓋既有 release 檔案；同一檔名應由發布流程產生新版本或 `_1`、`_2` 後綴。
 
 ## 提交前檢查
