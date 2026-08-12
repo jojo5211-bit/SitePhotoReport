@@ -1557,9 +1557,14 @@ class ProjectStore {
     final thumbRel = p.join('thumbnails', '$photoId.jpg');
     final previewRel = p.join('previews', '$photoId.jpg');
 
-    // Copy original.
+    // Persist the source bytes into the project folder before touching the
+    // database.  Camera providers commonly return a temporary cache path;
+    // keeping a flushed copy here makes direct camera imports survive closing
+    // the picker, restarting the app, and later cache cleanup.
     await Directory(originalsDir).create(recursive: true);
-    await source.copy(p.join(root, originalRel));
+    final storedOriginal = File(p.join(root, originalRel));
+    final createdFiles = <File>[storedOriginal];
+    await storedOriginal.writeAsBytes(bytes, flush: true);
 
     // Decode + generate thumbnail (320) and preview (1600).
     final decoded = img.decodeImage(bytes);
@@ -1571,51 +1576,73 @@ class ProjectStore {
       await Directory(thumbnailsDir).create(recursive: true);
       await Directory(previewsDir).create(recursive: true);
       final thumb = img.copyResize(decoded, width: 320);
-      await File(
-        p.join(root, thumbRel),
-      ).writeAsBytes(img.encodeJpg(thumb, quality: 82));
+      final storedThumb = File(p.join(root, thumbRel));
+      createdFiles.add(storedThumb);
+      await storedThumb.writeAsBytes(
+        img.encodeJpg(thumb, quality: 82),
+        flush: true,
+      );
       final preview = img.copyResize(decoded, width: 1600);
-      await File(
-        p.join(root, previewRel),
-      ).writeAsBytes(img.encodeJpg(preview, quality: 88));
+      final storedPreview = File(p.join(root, previewRel));
+      createdFiles.add(storedPreview);
+      await storedPreview.writeAsBytes(
+        img.encodeJpg(preview, quality: 88),
+        flush: true,
+      );
     }
 
     final now = DateTime.now().toIso8601String();
-    await db.insert('photos', {
-      'id': photoId,
-      'original_filename': originalName,
-      'original_rel_path': originalRel,
-      'thumbnail_rel_path': thumbRel,
-      'preview_rel_path': previewRel,
-      'sha256': digest,
-      'mime_type': 'image/${ext.replaceFirst('.', '')}',
-      'file_size': bytes.length,
-      'width': width,
-      'height': height,
-      'captured_at': capturedAt,
-      'imported_at': now,
-      'rotation_degrees': 0,
-      'is_missing': 0,
-      'deleted_at': '',
-    });
+    try {
+      // Keep photo + placement + project timestamp atomic.  This avoids a
+      // partially saved direct-camera import if Android interrupts the write.
+      await db.transaction((txn) async {
+        await txn.insert('photos', {
+          'id': photoId,
+          'original_filename': originalName,
+          'original_rel_path': originalRel,
+          'thumbnail_rel_path': thumbRel,
+          'preview_rel_path': previewRel,
+          'sha256': digest,
+          'mime_type': 'image/${ext.replaceFirst('.', '')}',
+          'file_size': bytes.length,
+          'width': width,
+          'height': height,
+          'captured_at': capturedAt,
+          'imported_at': now,
+          'rotation_degrees': 0,
+          'is_missing': 0,
+          'deleted_at': '',
+        });
 
-    // Create placement (unclassified or directly into target slot).
-    final maxPos = await db.rawQuery(
-      'SELECT COALESCE(MAX(position), -1) + 1 AS np FROM placements WHERE slot_id ${targetSlotId == null ? 'IS NULL' : '= ?'}',
-      targetSlotId == null ? null : [targetSlotId],
-    );
-    final pos = Sqflite.firstIntValue(maxPos) ?? 0;
-    await db.insert('placements', {
-      'id': 'PLC-${DateTime.now().microsecondsSinceEpoch}',
-      'photo_id': photoId,
-      'slot_id': targetSlotId,
-      'position': pos,
-      'created_at': now,
-      'updated_at': now,
-      'is_human_confirmed': targetSlotId != null ? 1 : 0,
-      'include_in_report': 1,
-    });
-    return photoId;
+        // Create placement (unclassified or directly into target slot).
+        final maxPos = await txn.rawQuery(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS np FROM placements WHERE slot_id ${targetSlotId == null ? 'IS NULL' : '= ?'}',
+          targetSlotId == null ? null : [targetSlotId],
+        );
+        final pos = Sqflite.firstIntValue(maxPos) ?? 0;
+        await txn.insert('placements', {
+          'id': 'PLC-${DateTime.now().microsecondsSinceEpoch}',
+          'photo_id': photoId,
+          'slot_id': targetSlotId,
+          'position': pos,
+          'created_at': now,
+          'updated_at': now,
+          'is_human_confirmed': targetSlotId != null ? 1 : 0,
+          'include_in_report': 1,
+        });
+        await txn.update('project', {'updated_at': now}, where: 'id = 1');
+      });
+      return photoId;
+    } catch (_) {
+      // Do not leave orphaned originals/previews when the database commit
+      // fails.  The source file outside the project is never touched.
+      for (final file in createdFiles.reversed) {
+        try {
+          if (await file.exists()) await file.delete();
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 
   String _extractCapturedAt(
