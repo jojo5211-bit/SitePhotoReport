@@ -51,12 +51,24 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
     setState(() => _importing = true);
     String? id;
     Object? error;
+    bool? gallerySaved;
     try {
       id = await store.importFile(path, targetSlotId: widget.slotId);
       // Await the refresh so the newly captured photo is visible before the
       // completion message is shown.  The load request token prevents an
       // older, slower refresh from overwriting this result.
-      if (id != null) await _load();
+      if (id != null) {
+        final savedPhoto = await store.photo(id);
+        final originalRel = (savedPhoto?['original_rel_path'] ?? '').toString();
+        if (originalRel.isNotEmpty) {
+          gallerySaved = await _capture.saveToDeviceGallery(
+            store.originalFile(originalRel).path,
+          );
+        } else {
+          gallerySaved = false;
+        }
+        await _load();
+      }
     } catch (e) {
       error = e;
     } finally {
@@ -70,7 +82,9 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
               ? '照片保存失敗：$error'
               : id == null
               ? '照片重複或無效'
-              : '已拍入「$title」',
+              : gallerySaved == true
+              ? '已拍入「$title」，並保存到手機相簿'
+              : '已拍入「$title」，但未能保存到手機相簿（請允許照片權限）',
         ),
       ),
     );
