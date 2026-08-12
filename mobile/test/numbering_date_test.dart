@@ -197,6 +197,61 @@ void main() {
       await tempDir.delete(recursive: true);
     }
   });
+
+  test(
+    'direct slot import survives closing and reopening the project',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'sprj_import_test_',
+      );
+      final projectPath = p.join(tempDir.path, 'camera.sprj');
+      final store = await ProjectStore.createProject(projectPath, '拍照保存測試工程');
+      try {
+        final section = (await store.sections()).first;
+        final slotId = (await store.slots(
+          section['id'].toString(),
+        )).first['id'].toString();
+        final sourcePath = await _writeJpeg(tempDir.path, 'camera.jpg', 120);
+        final photoId = await store.importFile(
+          sourcePath,
+          targetSlotId: slotId,
+        );
+
+        expect(photoId, isNotNull);
+        final savedPhoto = await store.photo(photoId!);
+        final savedOriginal = store.originalFile(
+          savedPhoto!['original_rel_path'].toString(),
+        );
+        expect(await savedOriginal.exists(), isTrue);
+        expect(
+          (await store.placementsForSlot(slotId)).map((r) => r['photo_id']),
+          [photoId],
+        );
+      } finally {
+        await store.close();
+      }
+
+      final reopened = ProjectStore(projectPath);
+      try {
+        await reopened.open();
+        final sections = await reopened.sections();
+        final slotId = (await reopened.slots(
+          sections.first['id'].toString(),
+        )).first['id'].toString();
+        final rows = await reopened.placementsForSlot(slotId);
+        expect(rows, hasLength(1));
+        expect(
+          await reopened
+              .originalFile(rows.first['original_rel_path'].toString())
+              .exists(),
+          isTrue,
+        );
+      } finally {
+        await reopened.close();
+        await tempDir.delete(recursive: true);
+      }
+    },
+  );
 }
 
 Future<String> _writeJpeg(
