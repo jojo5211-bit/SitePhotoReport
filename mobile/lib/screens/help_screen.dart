@@ -5,13 +5,13 @@ import '../theme/app_theme.dart';
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
 
-  static const String appVersion = '1.1.1';
+  static const String appVersion = '1.1.2';
 
   static const String _guide = '''工程照片整理器 SitePhoto Report（手機版）
 
 【快速上手】
 1. 新增工程：首頁點「新增工程」，輸入工程名稱即可建立。
-2. 拍照／匯入：進入欄位後點右下角「拍照／匯入」，可直接拍照放入該欄位，或從相簿批次選取。
+2. 拍照／匯入：進入欄位後點右下角「拍照／匯入」，可直接拍照放入該欄位；拍攝照片會同步保存到手機內建相簿，或從相簿批次選取。
 3. 分類照片：
    • 快速分類（滑動式）：工程總覽點「拍照或快速分類」，逐張點選目標欄位。
    • AI 自動分類：設定好 API 後，選單點「AI 自動分類」，信心度 ≥ 0.55 自動放入，其餘進建議清單逐筆確認。
@@ -36,6 +36,10 @@ class HelpScreen extends StatelessWidget {
 ''';
 
   static const String _changelog = '''版本更新紀錄
+
+1.1.2（2026-08-12）
+• 直接在工程項目內拍攝照片時，除了保存到工程專案，也會同步保存一份到 Android 手機內建相簿。
+• 若使用者拒絕相簿權限，工程照片仍會正常保存，並顯示相簿副本未建立的提示。
 
 1.1.1（2026-08-12）
 • 修正欄位內直接拍照／匯入後畫面不即時更新；每張照片完成保存後立即出現在目前欄位。
