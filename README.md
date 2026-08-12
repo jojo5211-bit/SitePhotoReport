@@ -5,7 +5,7 @@
 目前原始碼版本：
 
 - Windows 桌面版：`0.8.0`
-- Android 手機版：`1.1.0+11`
+- Android 手機版：`1.1.1+12`
 
 ## 功能概覽
 
@@ -80,13 +80,13 @@ flutter build apk --release
 
 ## 介面截圖
 
-以下截圖來自手機版實際介面，展示欄位照片編號與 PDF 報告預覽。截圖只作操作說明，不代表工程資料會隨程式提交。
+以下圖片是以「照片預覽」佔位圖製作的 UI 示意，不含任何使用者工程照片；另外提供桌面版與手機版畫面，方便了解操作配置。
 
-![欄位照片編號](docs/images/mobile-numbering.jpg)
+![Windows 桌面版工作區 UI 示意](docs/images/desktop-ui-mockup.svg)
 
-![PDF 報告預覽](docs/images/pdf-preview.jpg)
+![Android 手機版欄位 UI 示意](docs/images/mobile-ui-mockup.svg)
 
-![PDF 報告續頁預覽](docs/images/pdf-preview-continuation.jpg)
+![Android PDF 預覽 UI 示意](docs/images/mobile-pdf-mockup.svg)
 
 ## 工程資料與隱私
 
@@ -94,3 +94,8 @@ flutter build apk --release
 
 使用外部視覺 API 前，請確認業主或工地照片可以上傳至該服務。API 設定僅保存在本機使用者設定檔，不會由本專案提供任何金鑰。
 
+## 授權與使用範圍
+
+本專案採用 [PolyForm Noncommercial License 1.0.0](LICENSE)。允許非商業用途的使用、修改與散布；禁止商業用途。
+
+因為本授權禁止商業使用，嚴格來說本專案屬於「可取得原始碼的非商業授權」（source-available），不是 OSI 定義的 Open Source。若需要商業使用或其他授權安排，請先取得著作權人書面同意。
