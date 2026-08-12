@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="top" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1c6fa8"/><stop offset="1" stop-color="#2a8a91"/></linearGradient>
+    <linearGradient id="ph" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8e8ef"/><stop offset="1" stop-color="#a8c6d4"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#345" flood-opacity=".18"/></filter>
+  </defs>
+  <rect width="1600" height="1000" fill="#eaf0f3"/>
+  <rect x="40" y="35" width="1520" height="930" rx="18" fill="#fff" filter="url(#shadow)"/>
+  <rect x="40" y="35" width="1520" height="82" rx="18" fill="url(#top)"/>
+  <rect x="40" y="90" width="1520" height="27" fill="url(#top)"/>
+  <text x="78" y="88" fill="#fff" font-family="Arial, sans-serif" font-size="29" font-weight="700">SitePhoto Report · 屋頂防水工程</text>
+  <text x="1290" y="87" fill="#dceff0" font-family="Arial, sans-serif" font-size="19">儲存　預覽　輸出</text>
+  <rect x="40" y="117" width="330" height="848" fill="#f4f8fa"/>
+  <text x="72" y="167" fill="#1c6fa8" font-family="Arial, sans-serif" font-size="24" font-weight="700">工程項目</text>
+  <rect x="65" y="192" width="280" height="48" rx="10" fill="#d9eef3"/>
+  <text x="86" y="224" fill="#266c78" font-family="Arial, sans-serif" font-size="18">01 施工前現況　4 張</text>
+  <rect x="65" y="254" width="280" height="48" rx="10" fill="#fff" stroke="#d3e0e5"/>
+  <text x="86" y="286" fill="#526c77" font-family="Arial, sans-serif" font-size="18">02 清潔工程　6 張</text>
+  <rect x="65" y="316" width="280" height="48" rx="10" fill="#fff" stroke="#d3e0e5"/>
+  <text x="86" y="348" fill="#526c77" font-family="Arial, sans-serif" font-size="18">03 裂縫補強　8 張</text>
+  <rect x="65" y="378" width="280" height="48" rx="10" fill="#fff" stroke="#d3e0e5"/>
+  <text x="86" y="410" fill="#526c77" font-family="Arial, sans-serif" font-size="18">04 防水面漆　5 張</text>
+  <rect x="65" y="452" width="130" height="44" rx="22" fill="#1c79b5"/>
+  <text x="130" y="480" fill="#fff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">＋新增項目</text>
+  <rect x="207" y="452" width="138" height="44" rx="22" fill="#fff" stroke="#1c79b5"/>
+  <text x="276" y="480" fill="#1c6fa8" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">排序</text>
+  <rect x="370" y="117" width="790" height="848" fill="#fbfdfe"/>
+  <text x="407" y="167" fill="#1c6fa8" font-family="Arial, sans-serif" font-size="24" font-weight="700">03 裂縫補強</text>
+  <text x="407" y="205" fill="#596f79" font-family="Arial, sans-serif" font-size="19">施工前　·　施工中　·　施工後　　＋</text>
+  <rect x="407" y="232" width="715" height="2" fill="#cfe0e5"/>
+  <text x="407" y="272" fill="#2a8a91" font-family="Arial, sans-serif" font-size="21" font-weight="700">施工中</text>
+  <g>
+    <rect x="407" y="300" width="215" height="240" rx="12" fill="url(#ph)" stroke="#c1d5dc"/>
+    <path d="M425 495 480 430l38 37 35-48 51 66" fill="none" stroke="#fff" stroke-width="10" opacity=".9"/>
+    <text x="515" y="520" fill="#315466" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">照片預覽 01</text>
+    <circle cx="589" cy="325" r="23" fill="#d36a50"/><text x="589" y="333" fill="#fff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">1</text>
+  </g>
+  <g>
+    <rect x="645" y="300" width="215" height="240" rx="12" fill="url(#ph)" stroke="#c1d5dc"/>
+    <path d="M663 495 718 430l38 37 35-48 51 66" fill="none" stroke="#fff" stroke-width="10" opacity=".9"/>
+    <text x="753" y="520" fill="#315466" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">照片預覽 02</text>
+    <circle cx="827" cy="325" r="23" fill="#d36a50"/><text x="827" y="333" fill="#fff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">2</text>
+  </g>
+  <g>
+    <rect x="883" y="300" width="215" height="240" rx="12" fill="url(#ph)" stroke="#c1d5dc"/>
+    <path d="M901 495 956 430l38 37 35-48 51 66" fill="none" stroke="#fff" stroke-width="10" opacity=".9"/>
+    <text x="991" y="520" fill="#315466" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">照片預覽 03</text>
+    <circle cx="1065" cy="325" r="23" fill="#d36a50"/><text x="1065" y="333" fill="#fff" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">3</text>
+  </g>
+  <rect x="407" y="590" width="715" height="120" rx="14" fill="#fff6e4" stroke="#efd29b"/>
+  <text x="432" y="633" fill="#966d27" font-family="Arial, sans-serif" font-size="20" font-weight="700">拖放提示</text>
+  <text x="432" y="672" fill="#966d27" font-family="Arial, sans-serif" font-size="18">報告輸出順序：由左至右、由上至下</text>
+  <rect x="407" y="760" width="715" height="86" rx="14" fill="#e8f4f5"/>
+  <text x="432" y="813" fill="#2a7177" font-family="Arial, sans-serif" font-size="19">AI 建議分類　·　人工確認優先　·　原始照片不覆蓋</text>
+  <rect x="1160" y="117" width="400" height="848" fill="#f7fafb"/>
+  <text x="1192" y="167" fill="#1c6fa8" font-family="Arial, sans-serif" font-size="24" font-weight="700">照片屬性</text>
+  <rect x="1192" y="198" width="336" height="230" rx="14" fill="url(#ph)"/>
+  <path d="M1215 385 1300 300l54 54 56-70 88 101" fill="none" stroke="#fff" stroke-width="14" opacity=".9"/>
+  <text x="1360" y="410" fill="#315466" font-family="Arial, sans-serif" font-size="19" text-anchor="middle">照片預覽</text>
+  <text x="1192" y="478" fill="#526c77" font-family="Arial, sans-serif" font-size="18">說明</text>
+  <rect x="1192" y="495" width="336" height="62" rx="10" fill="#fff" stroke="#d3e0e5"/>
+  <text x="1212" y="534" fill="#7b8e96" font-family="Arial, sans-serif" font-size="16">可編輯照片說明與位置</text>
+  <rect x="1192" y="590" width="150" height="45" rx="22" fill="#1c79b5"/><text x="1267" y="619" fill="#fff" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">旋轉</text>
+  <rect x="1370" y="590" width="158" height="45" rx="22" fill="#1c79b5"/><text x="1449" y="619" fill="#fff" font-family="Arial, sans-serif" font-size="17" text-anchor="middle">馬賽克</text>
+  <text x="1192" y="720" fill="#526c77" font-family="Arial, sans-serif" font-size="18">輸出設定</text>
+  <text x="1192" y="758" fill="#7b8e96" font-family="Arial, sans-serif" font-size="17">PDF · Word · Excel</text>
+  <text x="1192" y="794" fill="#7b8e96" font-family="Arial, sans-serif" font-size="17">版型：自動滿版／2×3</text>
+  <text x="1192" y="902" fill="#6d848d" font-family="Arial, sans-serif" font-size="15">UI 示意圖｜照片區為佔位內容</text>
+</svg>

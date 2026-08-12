@@ -30,8 +30,10 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
   List<_Row> _rows = [];
   List<Map<String, dynamic>> _flatPhotos = [];
   bool _loading = true;
+  bool _importing = false;
   bool _reorderMode = false;
   String _sortMode = 'manual';
+  int _loadRequest = 0;
 
   @override
   void initState() {
@@ -46,11 +48,32 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
     final store = context.read<AppState>().store!;
     final messenger = ScaffoldMessenger.of(context);
     final title = widget.title;
-    final id = await store.importFile(path, targetSlotId: widget.slotId);
+    setState(() => _importing = true);
+    String? id;
+    Object? error;
+    try {
+      id = await store.importFile(path, targetSlotId: widget.slotId);
+      // Await the refresh so the newly captured photo is visible before the
+      // completion message is shown.  The load request token prevents an
+      // older, slower refresh from overwriting this result.
+      if (id != null) await _load();
+    } catch (e) {
+      error = e;
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+    if (!mounted) return;
     messenger.showSnackBar(
-      SnackBar(content: Text(id == null ? '照片重複或無效' : '已拍入「$title」')),
+      SnackBar(
+        content: Text(
+          error != null
+              ? '照片保存失敗：$error'
+              : id == null
+              ? '照片重複或無效'
+              : '已拍入「$title」',
+        ),
+      ),
     );
-    _load();
   }
 
   Future<void> _pickGallery() async {
@@ -60,12 +83,31 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final title = widget.title;
     var imported = 0;
-    for (final path in paths) {
-      final id = await store.importFile(path, targetSlotId: widget.slotId);
-      if (id != null) imported++;
+    Object? error;
+    setState(() => _importing = true);
+    try {
+      for (final path in paths) {
+        final id = await store.importFile(path, targetSlotId: widget.slotId);
+        if (id != null) {
+          imported++;
+          // Refresh after every file so a large gallery import is observable
+          // immediately instead of appearing only after leaving the page.
+          await _load();
+        }
+      }
+    } catch (e) {
+      error = e;
+    } finally {
+      if (mounted) setState(() => _importing = false);
     }
-    messenger.showSnackBar(SnackBar(content: Text('已匯入 $imported 張到「$title」')));
-    _load();
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          error != null ? '匯入失敗：$error' : '已匯入 $imported 張到「$title」',
+        ),
+      ),
+    );
   }
 
   void _showAddSheet() {
@@ -98,6 +140,7 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
   }
 
   Future<void> _load() async {
+    final request = ++_loadRequest;
     final store = context.read<AppState>().store!;
     final photos = await store.placementsForSlot(
       widget.slotId,
@@ -130,7 +173,7 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
     }
     flush();
 
-    if (!mounted) return;
+    if (!mounted || request != _loadRequest) return;
     setState(() {
       _rows = rows;
       _flatPhotos = List.of(photos);
@@ -395,43 +438,60 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _rows.isEmpty
-          ? const Center(
-              child: Text('這個欄位還沒有照片', style: TextStyle(color: Colors.grey)),
-            )
-          : _reorderMode
-          ? ReorderableListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: _flatPhotos.length,
-              onReorder: _onReorder,
-              itemBuilder: (ctx, i) {
-                final row = _flatPhotos[i];
-                return _reorderTile(row, i);
-              },
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: _rows.length,
-                itemBuilder: (ctx, i) {
-                  final row = _rows[i];
-                  if (row.isSeparator) {
-                    return DateSeparator(date: row.date!);
-                  }
-                  return _photoRow(row.photos!);
-                },
+      body: Column(
+        children: [
+          if (_importing) ...[
+            const LinearProgressIndicator(minHeight: 3),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                '照片載入中，已加入的照片會即時顯示',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
             ),
+          ],
+          Expanded(child: _buildContent()),
+        ],
+      ),
       floatingActionButton: _reorderMode
           ? null
           : FloatingActionButton.extended(
-              onPressed: _showAddSheet,
+              onPressed: _importing ? null : _showAddSheet,
               icon: const Icon(Icons.camera_alt),
               label: const Text('拍照／匯入'),
             ),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_rows.isEmpty) {
+      return const Center(
+        child: Text('這個欄位還沒有照片', style: TextStyle(color: Colors.grey)),
+      );
+    }
+    if (_reorderMode) {
+      return ReorderableListView.builder(
+        padding: const EdgeInsets.all(8),
+        itemCount: _flatPhotos.length,
+        onReorder: _onReorder,
+        itemBuilder: (ctx, i) {
+          final row = _flatPhotos[i];
+          return _reorderTile(row, i);
+        },
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(8),
+        itemCount: _rows.length,
+        itemBuilder: (ctx, i) {
+          final row = _rows[i];
+          if (row.isSeparator) return DateSeparator(date: row.date!);
+          return _photoRow(row.photos!);
+        },
+      ),
     );
   }
 

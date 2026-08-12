@@ -5,7 +5,7 @@ import '../theme/app_theme.dart';
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
 
-  static const String appVersion = '1.1.0';
+  static const String appVersion = '1.1.1';
 
   static const String _guide = '''工程照片整理器 SitePhoto Report（手機版）
 
@@ -36,6 +36,12 @@ class HelpScreen extends StatelessWidget {
 ''';
 
   static const String _changelog = '''版本更新紀錄
+
+1.1.1（2026-08-12）
+• 修正欄位內直接拍照／匯入後畫面不即時更新；每張照片完成保存後立即出現在目前欄位。
+• 修正初次載入與匯入刷新競速，避免舊查詢結果覆蓋剛加入的照片。
+• 相機照片先以 flush 寫入工程 originals，再以資料庫交易保存照片與欄位關聯，重新開啟工程仍可找到。
+• 匯入中顯示載入提示，避免使用者重複操作。
 
 1.1.0（2026-08-11）
 • PDF改為每個項目／欄位都從新頁開始，避免不同欄位被塞在同一頁中間或下方。
