@@ -196,7 +196,6 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
   }
 
   Future<void> _onReorder(int oldIndex, int newIndex) async {
-    if (newIndex > oldIndex) newIndex -= 1;
     setState(() {
       final item = _flatPhotos.removeAt(oldIndex);
       _flatPhotos.insert(newIndex, item);
@@ -228,13 +227,19 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const ListTile(leading: Icon(Icons.sort), title: Text('目前欄位排列方式')),
-            for (final option in _sortOptions)
-              RadioListTile<String>(
-                value: option.$1,
-                groupValue: _sortMode,
-                title: Text(option.$2),
-                onChanged: (value) => Navigator.pop(ctx, value),
+            RadioGroup<String>(
+              groupValue: _sortMode,
+              onChanged: (value) => Navigator.pop(ctx, value),
+              child: Column(
+                children: [
+                  for (final option in _sortOptions)
+                    RadioListTile<String>(
+                      value: option.$1,
+                      title: Text(option.$2),
+                    ),
+                ],
               ),
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -488,7 +493,7 @@ class _PhotoGridScreenState extends State<PhotoGridScreen> {
       return ReorderableListView.builder(
         padding: const EdgeInsets.all(8),
         itemCount: _flatPhotos.length,
-        onReorder: _onReorder,
+        onReorderItem: _onReorder,
         itemBuilder: (ctx, i) {
           final row = _flatPhotos[i];
           return _reorderTile(row, i);

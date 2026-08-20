@@ -325,6 +325,36 @@ class ProjectStoreTests(unittest.TestCase):
         self.assertEqual(1, len(self.store.placements_for_slot(None)))
         self.assertEqual(0, len(self.store.placements_for_slot(slot["id"])))
 
+    def test_export_check_reports_unclassified_and_passes_after_relocation(self):
+        imported, _ = self.store.import_files([self.source_dir / "photo_0.jpg"])
+        issues = self.store.export_check()
+        self.assertEqual("error", issues[0]["severity"])
+        self.assertIn("報告沒有照片", " ".join(str(issue["title"]) for issue in issues))
+        section = self.store.sections()[0]
+        slot = self.store.slots(section["id"])[0]
+        self.store.relocate_photos(imported, None, slot["id"])
+        self.assertEqual([], self.store.export_check())
+
+    def test_export_check_warns_when_an_included_source_is_missing(self):
+        imported, _ = self.store.import_files([self.source_dir / "photo_0.jpg"])
+        section = self.store.sections()[0]
+        slot = self.store.slots(section["id"])[0]
+        self.store.relocate_photos(imported, None, slot["id"])
+        photo = self.store.photo(imported[0])
+        (self.store.root / photo["original_rel_path"]).unlink()
+        (self.store.root / photo["preview_rel_path"]).unlink()
+        issues = self.store.export_check()
+        self.assertTrue(any(issue["title"] == "找不到照片檔案" for issue in issues))
+
+    def test_exif_datetime_is_normalized_on_import(self):
+        source = self.source_dir / "dated.jpg"
+        image = Image.new("RGB", (320, 240), (100, 100, 100))
+        exif = image.getexif()
+        exif[36867] = "2026:08:20 09:08:07"
+        image.save(source, exif=exif)
+        imported, _ = self.store.import_files([source])
+        self.assertEqual("2026-08-20 09:08:07", self.store.photo(imported[0])["captured_at"])
+
 
 if __name__ == "__main__":
     unittest.main()

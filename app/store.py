@@ -31,9 +31,13 @@ class ProjectStore:
         self.root.mkdir(parents=True, exist_ok=True)
         for name in ("originals", "thumbnails", "previews", "edits", "assets", "exports", "backups", "logs"):
             (self.root / name).mkdir(exist_ok=True)
-        self.db = sqlite3.connect(self.root / "project.sqlite")
+        # A project can be opened by the UI while a background import or
+        # thumbnail rebuild uses a short-lived worker connection.  A slightly
+        # longer busy timeout makes that hand-off resilient on slower disks.
+        self.db = sqlite3.connect(self.root / "project.sqlite", timeout=30)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys = ON")
+        self.db.execute("PRAGMA busy_timeout = 30000")
         self.db.execute("PRAGMA journal_mode = WAL")
         self._init_schema()
 
@@ -549,20 +553,20 @@ class ProjectStore:
                 if progress:
                     progress(index, total)
                 continue
-            digest = self._sha256(source)
-            if self.db.execute("SELECT 1 FROM photos WHERE sha256 = ? AND deleted_at = '' LIMIT 1", (digest,)).fetchone():
-                skipped.append(str(source))
-                if progress:
-                    progress(index, total)
-                continue
             photo_id = new_id("PHO")
             original_name = source.name
             stored_name = f"{photo_id}_{original_name}"
             original_rel = Path("originals") / stored_name
             thumb_rel = Path("thumbnails") / f"{photo_id}.jpg"
             preview_rel = Path("previews") / f"{photo_id}.jpg"
-            shutil.copy2(source, self.root / original_rel)
             try:
+                digest = self._sha256(source)
+                if self.db.execute("SELECT 1 FROM photos WHERE sha256 = ? AND deleted_at = '' LIMIT 1", (digest,)).fetchone():
+                    skipped.append(str(source))
+                    if progress:
+                        progress(index, total)
+                    continue
+                shutil.copy2(source, self.root / original_rel)
                 with Image.open(source) as image:
                     oriented = ImageOps.exif_transpose(image)
                     width, height = oriented.size
@@ -574,9 +578,11 @@ class ProjectStore:
                     captured_at = ""
                     exif = image.getexif()
                     if exif:
-                        captured_at = str(exif.get(36867) or exif.get(306) or "")
-            except Exception:
+                        captured_at = self._normalize_captured_at(exif.get(36867) or exif.get(36868) or exif.get(306) or "")
+            except Exception:  # noqa: BLE001 - a bad source must not abort a batch import
                 (self.root / original_rel).unlink(missing_ok=True)
+                (self.root / thumb_rel).unlink(missing_ok=True)
+                (self.root / preview_rel).unlink(missing_ok=True)
                 skipped.append(str(source))
                 if progress:
                     progress(index, total)
@@ -595,6 +601,19 @@ class ProjectStore:
                 progress(index, total)
         self.db.commit()
         return imported, skipped
+
+    @staticmethod
+    def _normalize_captured_at(value: object) -> str:
+        """Return EXIF dates in one sortable format while keeping unknown text."""
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        for pattern in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S"):
+            try:
+                return datetime.strptime(raw, pattern).strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+        return raw
 
     def _create_placement(self, photo_id: str, slot_id: str | None, position: int | None = None, confirmed: bool = False) -> str:
         placement_id = new_id("PLC")
@@ -722,6 +741,70 @@ class ProjectStore:
         ORDER BY s.position, sl.position, p.position, p.created_at
         """
         return list(self.db.execute(query))
+
+    def export_check(self) -> list[dict[str, str | int]]:
+        """Return actionable checks before a report is generated.
+
+        These are deliberately warnings unless there is nothing usable to
+        export.  An unclassified photo can be intentional, so the user may
+        continue after seeing the warning rather than being forced to classify
+        every photo first.
+        """
+        issues: list[dict[str, str | int]] = []
+        photos = self.photos()
+        report_rows = [
+            row for row in self.all_report_rows()
+            if row["placement_id"] and row["id"] and row["include_in_report"]
+        ]
+        if not photos:
+            issues.append({"severity": "error", "title": "沒有照片", "detail": "目前工程沒有可輸出的照片。"})
+            return issues
+        if not report_rows:
+            issues.append({"severity": "error", "title": "報告沒有照片", "detail": "目前沒有任何照片位於可輸出的項目欄位；未分類照片不會直接列入報告。"})
+
+        unclassified_count = len(self.unclassified_photos())
+        if unclassified_count:
+            issues.append({
+                "severity": "warning",
+                "title": "仍有未分類照片",
+                "detail": f"有 {unclassified_count} 張照片仍在未分類區，輸出報告不會包含它們。",
+                "count": unclassified_count,
+            })
+
+        pending_count = len(self.suggestions())
+        if pending_count:
+            issues.append({
+                "severity": "warning",
+                "title": "仍有待確認的分類建議",
+                "detail": f"有 {pending_count} 張照片的自動分類建議尚未確認。",
+                "count": pending_count,
+            })
+
+        missing_names: list[str] = []
+        seen_photo_ids: set[str] = set()
+        for row in report_rows:
+            photo_id = str(row["id"])
+            if photo_id in seen_photo_ids:
+                continue
+            seen_photo_ids.add(photo_id)
+            candidate_paths = [
+                self.root / str(row[key])
+                for key in ("original_rel_path", "preview_rel_path")
+                if str(row[key] or "").strip()
+            ]
+            if not any(path.exists() for path in candidate_paths):
+                missing_names.append(str(row["original_filename"] or photo_id))
+        if missing_names:
+            shown = "、".join(missing_names[:5])
+            if len(missing_names) > 5:
+                shown += f"…等 {len(missing_names)} 張"
+            issues.append({
+                "severity": "warning",
+                "title": "找不到照片檔案",
+                "detail": f"報告中的照片檔案無法讀取：{shown}",
+                "count": len(missing_names),
+            })
+        return issues
 
     def number_slot(self, slot_id: str | None, position: str, color: str, size: str, transparent: bool = False) -> None:
         rows = self.placements_for_slot(slot_id)
@@ -885,10 +968,14 @@ class ProjectStore:
 
     def rebuild_thumbnails(self, progress: Callable[[int, int], None] | None = None) -> int:
         """Rebuild missing thumbnail/preview images. Returns count rebuilt."""
-        photos = self.photos()
+        photos = [
+            photo for photo in self.photos()
+            if not (self.root / photo["thumbnail_rel_path"]).exists()
+            or not (self.root / photo["preview_rel_path"]).exists()
+        ]
         total = len(photos)
         rebuilt = 0
-        for index, photo in enumerate(photos):
+        for index, photo in enumerate(photos, start=1):
             thumb = self.root / photo["thumbnail_rel_path"]
             preview = self.root / photo["preview_rel_path"]
             original = self.root / photo["original_rel_path"]
@@ -911,7 +998,7 @@ class ProjectStore:
             except (OSError, ValueError):
                 pass
             if progress:
-                progress(index + 1, total)
+                progress(index, total)
         return rebuilt
 
     def confirmed_examples(self, limit: int = 5) -> list[dict]:

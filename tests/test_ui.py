@@ -8,10 +8,10 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PIL import Image
-from PySide6.QtCore import QByteArray, QMimeData
+from PySide6.QtCore import QByteArray, QEventLoop, QMimeData, QTimer
 from PySide6.QtWidgets import QApplication
 
-from app.main import BatchNameDialog, PHOTO_MIME, MainWindow, PhotoTabBar, sort_unclassified_rows
+from app.main import BatchNameDialog, PHOTO_MIME, MainWindow, PhotoTabBar, ProjectTaskWorker, sort_unclassified_rows
 from app.store import ProjectStore
 
 
@@ -74,6 +74,35 @@ class PhotoUiTests(unittest.TestCase):
         dialog.fields[2].setText("第三個")
         self.assertEqual(["第一個", "第三個"], dialog.values())
         dialog.close()
+
+    def test_background_import_worker_keeps_ui_thread_free(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "worker-test.sprj"
+            store = ProjectStore(root)
+            store.ensure_default_sections()
+            store.close()
+            source = Path(temporary) / "worker-photo.jpg"
+            Image.new("RGB", (640, 480), (80, 120, 160)).save(source)
+
+            worker = ProjectTaskWorker(root, "import", [str(source)])
+            loop = QEventLoop()
+            result_holder = []
+            error_holder = []
+            worker.completed.connect(result_holder.append)
+            worker.failed.connect(error_holder.append)
+            worker.finished.connect(loop.quit)
+            worker.start()
+            QTimer.singleShot(10000, loop.quit)
+            loop.exec()
+            worker.wait(10000)
+
+            self.assertEqual([], error_holder)
+            self.assertEqual(1, len(result_holder[0]["imported"]))
+            reopened = ProjectStore(root)
+            try:
+                self.assertEqual(1, len(reopened.photos()))
+            finally:
+                reopened.close()
 
 
 if __name__ == "__main__":

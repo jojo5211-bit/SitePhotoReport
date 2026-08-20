@@ -19,7 +19,7 @@ $isccCandidates = @(
 $iscc = $isccCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 if ($iscc) {
     & $iscc (Join-Path $projectRoot "installer.iss")
-    Write-Output "Setup EXE: $(Join-Path $projectRoot 'installer-output\SitePhotoReport_Setup_0.8.0.exe')"
+    Write-Output "Setup EXE: $(Join-Path $projectRoot 'installer-output\SitePhotoReport_Setup_0.8.1.exe')"
 } else {
     Write-Warning "找不到 Inno Setup 6；已完成 dist\SitePhotoReport，可直接使用或自行安裝 Inno Setup 後再執行此腳本。"
 }

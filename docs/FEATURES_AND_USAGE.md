@@ -27,8 +27,8 @@ SitePhoto Report 將這些工作集中在工程專案內：先建立工程項目
 
 | 版本 | 適合用途 | 主要功能 |
 |---|---|---|
-| Windows 桌面版 0.8.0 | 回公司整理大量照片與正式輸出 | 大量拖放、多選、欄位管理、AI 分類、照片編輯、PDF／Word／Excel |
-| Android 手機版 1.1.2+13 | 工地現場拍攝、快速分類與預覽 | 拍照／匯入、即時加入、同步保存手機相簿、專案管理、快速分類、欄位排序、編號、PDF 預覽與分享 |
+| Windows 桌面版 0.8.1 | 回公司整理大量照片與正式輸出 | 大量拖放、多選、欄位管理、AI 分類、照片編輯、PDF／Word／Excel |
+| Android 手機版 1.1.3+14 | 工地現場拍攝、快速分類與預覽 | 拍照／匯入、即時加入、同步保存手機相簿、專案管理、快速分類、欄位排序、編號、PDF 預覽與分享 |
 
 兩個版本都支援離線核心功能；使用外部視覺 API 時才需要網路。
 
@@ -209,8 +209,8 @@ Excel：定位為照片清冊，包含編號、項目、欄位、檔名、拍攝
 
 ## 9. 目前版本與測試
 
-- Windows 桌面版：`0.8.0`；測試以 `python -m unittest discover -s tests -v` 執行。
-- Android 手機版：`1.1.2+13`；測試以 `flutter analyze` 與 `flutter test` 執行。
+- Windows 桌面版：`0.8.1`；測試以 `python -m unittest discover -s tests -v` 執行。
+- Android 手機版：`1.1.3+14`；測試以 `flutter analyze` 與 `flutter test` 執行。
 - 版本變更請看 [CHANGELOG.md](CHANGELOG.md) 與 [MOBILE_CHANGELOG.md](MOBILE_CHANGELOG.md)。
 - 建置步驟請看 [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md)。
 

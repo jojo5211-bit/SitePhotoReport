@@ -300,7 +300,7 @@ class _ExportScreenState extends State<ExportScreen> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<ReportLayout>(
-                value: _layout,
+                initialValue: _layout,
                 decoration: const InputDecoration(
                   labelText: '照片排版方式',
                   border: OutlineInputBorder(),
@@ -331,7 +331,7 @@ class _ExportScreenState extends State<ExportScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<PdfTemplate>(
-                value: _template,
+                initialValue: _template,
                 decoration: const InputDecoration(
                   labelText: 'PDF模板',
                   border: OutlineInputBorder(),

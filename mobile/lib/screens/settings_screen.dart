@@ -198,39 +198,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 12),
-        if (_profiles.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('尚未設定 API', style: TextStyle(color: Colors.grey)),
-          ),
-        ..._profiles.map(
-          (p) => Card(
-            child: ListTile(
-              leading: Radio<String>(
-                value: p.name,
-                groupValue: _activeName,
-                onChanged: (_) => _setActive(p),
-              ),
-              title: Text(p.name),
-              subtitle: Text(
-                p.endpoint,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 20),
-                    onPressed: () => _editProfile(p),
+        RadioGroup<String>(
+          groupValue: _activeName,
+          onChanged: (value) {
+            final profile = _profiles.where((item) => item.name == value).firstOrNull;
+            if (profile != null) _setActive(profile);
+          },
+          child: Column(
+            children: [
+              if (_profiles.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('尚未設定 API', style: TextStyle(color: Colors.grey)),
+                ),
+              ..._profiles.map(
+                (p) => Card(
+                  child: ListTile(
+                    leading: Radio<String>(value: p.name),
+                    title: Text(p.name),
+                    subtitle: Text(
+                      p.endpoint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 20),
+                          onPressed: () => _editProfile(p),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                          onPressed: () => _deleteProfile(p),
+                        ),
+                      ],
+                    ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                    onPressed: () => _deleteProfile(p),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
