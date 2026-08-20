@@ -287,7 +287,7 @@ Android 版適合在工地直接拍攝與初步分類；回到辦公室後，可
 
 ## 測試與版本驗證
 
-- Windows 桌面版：`0.8.0`；使用 Python unittest。
+- Windows 桌面版：`0.8.1`；使用 Python unittest，已完成 32 項測試與 500 張照片批次壓力測試。
 - Android 手機版：`1.1.3+14`；使用 `flutter analyze` 與 `flutter test`。
 - 每個已交付版本使用獨立 Git tag 與 GitHub Release。
 - 版本變更請查看 [CHANGELOG.md](docs/CHANGELOG.md) 與 [MOBILE_CHANGELOG.md](docs/MOBILE_CHANGELOG.md)。
