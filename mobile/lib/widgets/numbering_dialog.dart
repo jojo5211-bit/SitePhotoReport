@@ -53,7 +53,7 @@ class _NumberingDialogState extends State<NumberingDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           DropdownButtonFormField<String>(
-            value: _position,
+            initialValue: _position,
             decoration: const InputDecoration(labelText: '編號位置'),
             items: _positions.entries
                 .map(
@@ -64,7 +64,7 @@ class _NumberingDialogState extends State<NumberingDialog> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _color,
+            initialValue: _color,
             decoration: const InputDecoration(labelText: '編號顏色'),
             items: _colors.entries
                 .map(

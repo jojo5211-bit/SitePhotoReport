@@ -489,6 +489,43 @@ class VisionWorker(QThread):
             self.failed.emit(str(error))
 
 
+class ProjectTaskWorker(QThread):
+    """Run disk-heavy project work without sharing the UI SQLite connection."""
+
+    progress = Signal(int, int, str)
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, root: str | Path, task: str, paths: list[str] | None = None, parent=None):
+        super().__init__(parent)
+        self.root = str(root)
+        self.task = task
+        self.paths = list(paths or [])
+
+    def run(self):  # noqa: D401 - Qt thread entry point
+        worker_store: ProjectStore | None = None
+        try:
+            worker_store = ProjectStore(self.root)
+            if self.task == "import":
+                imported, skipped = worker_store.import_files(
+                    self.paths,
+                    progress=lambda index, total: self.progress.emit(index, total, "照片載入中"),
+                )
+                self.completed.emit({"task": self.task, "imported": imported, "skipped": skipped})
+            elif self.task == "rebuild_thumbnails":
+                rebuilt = worker_store.rebuild_thumbnails(
+                    progress=lambda index, total: self.progress.emit(index, total, "重建縮圖中"),
+                )
+                self.completed.emit({"task": self.task, "rebuilt": rebuilt})
+            else:
+                raise ValueError(f"未知的背景工作：{self.task}")
+        except Exception as error:  # noqa: BLE001 - convert worker failures into a user-facing message
+            self.failed.emit(str(error))
+        finally:
+            if worker_store is not None:
+                worker_store.close()
+
+
 class PhotoTabBar(QTabBar):
     """Accept a photo drag on a field tab so fields can be changed directly."""
 
@@ -1086,6 +1123,50 @@ class ExportDialog(QDialog):
         super().accept()
 
 
+class ExportCheckDialog(QDialog):
+    """Show a concise, user-readable report preflight check."""
+
+    def __init__(self, issues: list[dict], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("輸出前檢查")
+        self.setMinimumSize(620, 360)
+        errors = [issue for issue in issues if issue.get("severity") == "error"]
+        warnings = [issue for issue in issues if issue.get("severity") != "error"]
+        if errors:
+            intro = QLabel("有必須先處理的問題，這次不能輸出報告：")
+        elif warnings:
+            intro = QLabel("輸出前發現以下提醒；確認後仍可繼續輸出：")
+        else:
+            intro = QLabel("輸出前檢查完成，沒有發現問題。")
+        intro.setWordWrap(True)
+
+        details = QListWidget()
+        for issue in issues:
+            prefix = "錯誤" if issue.get("severity") == "error" else "提醒"
+            item = QListWidgetItem(f"【{prefix}】{issue.get('title', '')}\n{issue.get('detail', '')}")
+            item.setSizeHint(QSize(580, 56))
+            details.addItem(item)
+        if not issues:
+            item = QListWidgetItem("✓ 工程資料、照片檔案與輸出內容均可使用。")
+            details.addItem(item)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if ok_button:
+            ok_button.setText("仍要輸出")
+            ok_button.setEnabled(not errors)
+        if cancel_button:
+            cancel_button.setText("返回修正")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(intro)
+        layout.addWidget(details)
+        layout.addWidget(buttons)
+
+
 class SettingsDialog(QDialog):
     def __init__(self, settings: AppSettings, parent=None):
         super().__init__(parent)
@@ -1278,6 +1359,8 @@ class MainWindow(QMainWindow):
         self.unclassified_sort = "time_asc"
         self.photo_sort_modes = {None: self.unclassified_sort}
         self.ai_worker: VisionWorker | None = None
+        self.project_task_worker: ProjectTaskWorker | None = None
+        self._project_enabled = False
         self._undo_stack: list[dict] = []
         self._build_ui()
         self._set_enabled(False)
@@ -1307,6 +1390,7 @@ class MainWindow(QMainWindow):
         self.sections.order_changed.connect(self.section_order_changed)
         self.sections.itemDoubleClicked.connect(self.rename_section)
         section_box = QWidget()
+        self.section_box = section_box
         section_layout = QVBoxLayout(section_box)
         section_layout.setContentsMargins(6, 6, 6, 6)
         section_layout.addWidget(QLabel("工程項目"))
@@ -1376,6 +1460,7 @@ class MainWindow(QMainWindow):
         rotate_buttons.addWidget(reset_rotation)
         self.rotation_label = QLabel("旋轉：0°（原圖不變）")
         property_box = QWidget()
+        self.property_box = property_box
         property_layout = QVBoxLayout(property_box)
         property_layout.setContentsMargins(8, 6, 8, 6)
         property_layout.addWidget(QLabel("照片屬性"))
@@ -1423,13 +1508,72 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
     def _set_enabled(self, enabled: bool):
-        self.sections.setEnabled(enabled)
-        self.tabs.setEnabled(enabled)
+        self._project_enabled = bool(enabled)
+        effective = bool(enabled) and self.project_task_worker is None
+        self.sections.setEnabled(effective)
+        self.tabs.setEnabled(effective)
+        if hasattr(self, "section_box"):
+            self.section_box.setEnabled(effective)
+        if hasattr(self, "property_box"):
+            self.property_box.setEnabled(effective)
 
     def _set_loading(self, visible: bool, text: str = "照片載入中，請稍候…"):
         if hasattr(self, "loading_label"):
             self.loading_label.setText(text)
             self.loading_label.setVisible(visible)
+
+    def _start_project_task(self, task: str, paths: list[str] | None = None, initial_total: int = 0):
+        if not self.store:
+            return False
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "背景工作進行中", "目前仍在處理照片，完成後才能開始下一個工作。")
+            return False
+        self.project_task_worker = ProjectTaskWorker(self.store.root, task, paths, self)
+        self.project_task_worker.progress.connect(self._project_task_progress)
+        self.project_task_worker.completed.connect(self._project_task_completed)
+        self.project_task_worker.failed.connect(self._project_task_failed)
+        self.project_task_worker.finished.connect(self._project_task_finished)
+        self._set_enabled(bool(self.store))
+        if task == "import":
+            self._set_loading(True, f"照片載入中… 0/{initial_total or len(paths or [])}")
+        else:
+            self._set_loading(True, f"重建縮圖中… 0/{initial_total}")
+        self.project_task_worker.start()
+        return True
+
+    def _project_task_progress(self, index: int, total: int, label: str):
+        self._set_loading(True, f"{label}… {index}/{total}")
+
+    def _project_task_completed(self, result: object):
+        if not isinstance(result, dict):
+            return
+        task = result.get("task")
+        if task == "import":
+            imported = list(result.get("imported", []))
+            skipped = list(result.get("skipped", []))
+            self.refresh_grids()
+            self.statusBar().showMessage(f"已匯入 {len(imported)} 張照片；略過 {len(skipped)} 張。")
+        elif task == "rebuild_thumbnails":
+            rebuilt = int(result.get("rebuilt", 0) or 0)
+            self.refresh_grids()
+            self.statusBar().showMessage(f"舊工程縮圖檢查完成；重建 {rebuilt} 張。")
+        self._set_loading(False)
+
+    def _project_task_failed(self, message: str):
+        self._set_loading(False)
+        QMessageBox.critical(
+            self,
+            "照片背景工作失敗",
+            "照片處理沒有完成，既有工程資料不會被刪除。\n\n" + str(message),
+        )
+        self.statusBar().showMessage("照片背景工作失敗；請查看工程資料是否仍可正常開啟。")
+
+    def _project_task_finished(self):
+        worker = self.project_task_worker
+        self.project_task_worker = None
+        self._set_enabled(self._project_enabled and bool(self.store))
+        if worker:
+            worker.deleteLater()
 
     def _close_store(self):
         if self.store:
@@ -1440,6 +1584,9 @@ class MainWindow(QMainWindow):
         self.grids.clear()
 
     def new_project(self):
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "請先等目前的照片處理完成，再建立新的工程。")
+            return
         dialog = ProjectDialog(parent=self, settings=self.app_settings)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -1460,32 +1607,36 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def open_project(self):
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "請先等目前的照片處理完成，再開啟另一個工程。")
+            return
         root = QFileDialog.getExistingDirectory(self, "選擇 .sprj 工程資料夾", str(Path.home() / "Documents"))
         if not root:
             return
         if not (Path(root) / "project.sqlite").exists():
             QMessageBox.warning(self, "不是工程專案", "選取的資料夾找不到 project.sqlite。")
             return
+        try:
+            new_store = ProjectStore(root)
+        except Exception as error:  # noqa: BLE001 - keep a damaged project from crashing the app
+            QMessageBox.critical(self, "工程開啟失敗", f"工程資料庫無法開啟：\n{error}")
+            return
         self._close_store()
-        self.store = ProjectStore(root)
+        self.store = new_store
         self.store.ensure_default_sections()
         self._remember_recent(Path(root))
-        # Rebuild missing thumbnails in background
         missing = sum(1 for ph in self.store.photos()
                       if not (self.store.root / ph["thumbnail_rel_path"]).exists()
                       or not (self.store.root / ph["preview_rel_path"]).exists())
-        if missing:
-            self._set_loading(True, f"重建縮圖中… 0/{missing}")
-            QApplication.processEvents()
-            rebuilt = self.store.rebuild_thumbnails(
-                progress=lambda i, t: (self._set_loading(True, f"重建縮圖中… {i}/{t}"), QApplication.processEvents()))
-            self._set_loading(False)
-            if rebuilt:
-                self.statusBar().showMessage(f"已重建 {rebuilt} 張縮圖")
         self.refresh_all()
+        if missing:
+            self._start_project_task("rebuild_thumbnails", initial_total=missing)
 
     def edit_project(self):
         if not self.store:
+            return
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "請先等目前的照片處理完成，再修改工程資料。")
             return
         dialog = ProjectDialog(dict(self.store.project()), self, self.app_settings)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -1495,25 +1646,16 @@ class MainWindow(QMainWindow):
     def import_photos(self):
         if not self.store:
             return
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "請先等目前的照片處理完成，再開始下一批匯入。")
+            return
         paths, _ = QFileDialog.getOpenFileNames(self, "匯入工程照片", str(Path.home()), "圖片 (*.jpg *.jpeg *.png *.webp *.bmp)")
         if not paths:
             return
-        imported, skipped = [], []
-        self._set_loading(True, f"照片載入中… 0/{len(paths)}")
-        QApplication.processEvents()
-        try:
-            imported, skipped = self.store.import_files(
-                paths,
-                progress=lambda index, total: self._import_progress(index, total),
-            )
-            self.refresh_grids()
-        finally:
-            self._set_loading(False)
-        self.statusBar().showMessage(f"已匯入 {len(imported)} 張照片；略過 {len(skipped)} 張。")
+        self._start_project_task("import", paths, initial_total=len(paths))
 
     def _import_progress(self, index: int, total: int):
-        self._set_loading(True, f"照片載入中… {index}/{total}")
-        QApplication.processEvents()
+        self._project_task_progress(index, total, "照片載入中")
 
     def add_section(self):
         if not self.store:
@@ -1662,18 +1804,9 @@ class MainWindow(QMainWindow):
         if not self.store or target.slot_id is not None:
             QMessageBox.information(self, "請拖到未分類", "外部資料夾照片請一次拖到「未分類」區域。")
             return
-        imported, skipped = [], []
-        self._set_loading(True, f"照片載入中… 0/{len(paths)}")
-        QApplication.processEvents()
-        try:
-            imported, skipped = self.store.import_files(
-                paths,
-                progress=lambda index, total: self._import_progress(index, total),
-            )
-            self.refresh_grids()
-        finally:
-            self._set_loading(False)
-        self.statusBar().showMessage(f"已從外部資料夾批次匯入 {len(imported)} 張照片；略過 {len(skipped)} 張。")
+        if not paths:
+            return
+        self._start_project_task("import", paths, initial_total=len(paths))
 
     def refresh_all(self):
         if not self.store:
@@ -1999,6 +2132,9 @@ class MainWindow(QMainWindow):
     def auto_classify(self):
         if not self.store:
             return
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "請先等目前的照片處理完成，再開始自動分類。")
+            return
         profile = self.app_settings.active_api_profile()
         vision_model = (profile or {}).get("vision_model") or (profile or {}).get("model")
         if profile and profile.get("endpoint") and vision_model:
@@ -2162,8 +2298,19 @@ class MainWindow(QMainWindow):
     def set_unclassified_sort(self, mode: str):
         self.set_photo_sort_mode(None, mode)
 
+    def _confirm_export_check(self) -> bool:
+        if not self.store:
+            return False
+        issues = self.store.export_check()
+        if not issues:
+            return True
+        return ExportCheckDialog(issues, self).exec() == QDialog.DialogCode.Accepted
+
     def export_reports(self):
         if not self.store:
+            return
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "請先等目前的照片處理完成，再輸出報告。")
             return
         project = self.store.project()
         number_summary = self.store.slot_number_summary()
@@ -2172,6 +2319,8 @@ class MainWindow(QMainWindow):
             lambda format_name, preview: self.export_single_report(dialog, format_name, preview)
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if not self._confirm_export_check():
             return
         output_dir = self.app_settings.project_export_directory(project["name"], self.store.root)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -2208,12 +2357,17 @@ class MainWindow(QMainWindow):
         """Preview or export one format without closing the report settings dialog."""
         if not self.store:
             return
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "請先等目前的照片處理完成，再預覽或輸出報告。")
+            return
         project = self.store.project()
         base = safe_name(project["report_title"] or project["name"])
         extensions = {"pdf": ".pdf", "word": ".docx", "excel": ".xlsx"}
         exporters = {"pdf": export_pdf, "word": export_word, "excel": export_excel}
         labels = {"pdf": "PDF", "word": "Word", "excel": "Excel"}
         if format_name not in exporters:
+            return
+        if not self._confirm_export_check():
             return
         if preview:
             output_dir = Path(tempfile.gettempdir()) / "SitePhotoReportPreview" / safe_name(project["name"])
@@ -2283,6 +2437,14 @@ class MainWindow(QMainWindow):
         path.write_text(json.dumps(recent[:10], ensure_ascii=False, indent=2), encoding="utf-8")
 
     def closeEvent(self, event):  # noqa: N802 - Qt override
+        if self.project_task_worker and self.project_task_worker.isRunning():
+            QMessageBox.information(self, "照片處理中", "目前正在處理照片，請等完成後再關閉程式，避免中斷匯入。")
+            event.ignore()
+            return
+        if self.ai_worker and self.ai_worker.isRunning():
+            QMessageBox.information(self, "AI 分類進行中", "目前正在進行 AI 分類，請等完成後再關閉程式。")
+            event.ignore()
+            return
         self.save_project()
         self._close_store()
         event.accept()
